@@ -5,109 +5,66 @@ using System.IO;
 
 public class ARImageCapture : MonoBehaviour
 {
-    private Camera arCamera;
-    private RenderTexture renderTexture;
-    private Texture2D capturedImage;
-    public RawImage displayImage; // UI RawImage to display captured image
+    public RawImage displayImage; // UI element to display the captured image
 
-    private string imagePath;
+    private Camera arCamera; // Reference to the AR camera
+    private Texture2D capturedImage; // Stores the captured image
+    private string imagePath; // Path to save the image
+    private RenderTexture renderTexture; // RenderTexture for capturing the screen
+
+    private ARGameManager arGameManager; // Reference to the AR game manager
 
     void Start()
     {
-        // Get the AR camera to capture the scene from the user's perspective
         arCamera = Camera.main;
+        arGameManager = FindObjectOfType<ARGameManager>();
 
-        // Create a RenderTexture to capture the camera output
+        // Initialize renderTexture once instead of creating it every time
         renderTexture = new RenderTexture(Screen.width, Screen.height, 24);
-
-        // Check if there is a saved image path from previous captures
-        if (PlayerPrefs.HasKey("SavedImagePath"))
-        {
-            // Retrieve the saved image path from PlayerPrefs
-            string savedPath = PlayerPrefs.GetString("SavedImagePath");
-
-            // Check if the saved image exists and display it
-            if (File.Exists(savedPath))
-            {
-                DisplayImageOnUI(savedPath);
-            }
-        }
     }
 
-    // Initiates the image capture after a specified number of frames
     public void CaptureImageAfterFrames(int frameDelay)
     {
         StartCoroutine(CaptureImageCoroutine(frameDelay));
     }
 
-    // Coroutine that waits for a delay before capturing the image
     private IEnumerator CaptureImageCoroutine(int frameDelay)
     {
-        // Wait for the specified number of frames
         yield return new WaitForSeconds(frameDelay * Time.deltaTime);
 
-        // Check if camera or render texture is null before proceeding
-        if (arCamera == null || renderTexture == null)
-        {
-            Debug.LogError("Camera or RenderTexture is null!");
-            yield break; // Exit the coroutine if there's an error
-        }
-
-        // Temporarily assign the RenderTexture to the AR camera for capturing the view
-        RenderTexture previousTexture = arCamera.targetTexture;
+        // Capture camera view into a texture
         arCamera.targetTexture = renderTexture;
-
-        // Wait for the frame to render fully
         yield return new WaitForEndOfFrame();
 
-        // Capture the image from the render texture
-        capturedImage = new Texture2D(renderTexture.width, renderTexture.height, TextureFormat.RGB24, false);
+        capturedImage = new Texture2D(Screen.width, Screen.height, TextureFormat.RGB24, false);
         RenderTexture.active = renderTexture;
-        capturedImage.ReadPixels(new Rect(0, 0, renderTexture.width, renderTexture.height), 0, 0);
+        capturedImage.ReadPixels(new Rect(0, 0, Screen.width, Screen.height), 0, 0);
         capturedImage.Apply();
 
-        // Define the path to save the captured image in persistent storage
-        imagePath = Application.persistentDataPath + "/AR_Capture.png"; // Use persistentDataPath for cross-platform saving
-        File.WriteAllBytes(imagePath, capturedImage.EncodeToPNG()); // Save the captured image as PNG
-        Debug.Log("Image Captured and saved at: " + imagePath);
+        // Save the image as a PNG file
+        imagePath = Application.persistentDataPath + "/AR_Capture.png";
+        File.WriteAllBytes(imagePath, capturedImage.EncodeToPNG());
 
-        // Save the image path in PlayerPrefs so it can be reloaded later
-        PlayerPrefs.SetString("SavedImagePath", imagePath);
-        PlayerPrefs.Save(); // Ensure PlayerPrefs data is saved
-
-        // Restore the original RenderTexture
-        arCamera.targetTexture = previousTexture;
+        // Cleanup
+        arCamera.targetTexture = null;
         RenderTexture.active = null;
 
-        // Display the captured image on the UI
-        DisplayImageOnUI(imagePath);
+        // Display the captured image on UI
+        DisplayImage(imagePath);
+
+        // Disable AR environment and show the captured image UI
+        arGameManager.environment.SetActive(false);
+        arGameManager.imageUI.SetActive(true);
+        displayImage.gameObject.SetActive(true);
     }
 
-    // Loads the captured image from file and displays it in the RawImage UI element
-    private void DisplayImageOnUI(string path)
+    private void DisplayImage(string path)
     {
-        // Check if the image file exists at the specified path
-        if (File.Exists(path))
-        {
-            byte[] imageBytes = File.ReadAllBytes(path); // Read the image file into a byte array
-            Texture2D loadedTexture = new Texture2D(2, 2); // Create a new Texture2D to load the image
-            loadedTexture.LoadImage(imageBytes); // Load the image data into the texture
+        if (!File.Exists(path)) return;
 
-            // Check if the RawImage UI element is assigned, then display the image
-            if (displayImage != null)
-            {
-                displayImage.texture = loadedTexture; // Set the loaded texture to the RawImage
-                displayImage.enabled = true; // Enable the RawImage to display the texture
-            }
-            else
-            {
-                Debug.LogError("RawImage UI element not assigned.");
-            }
-        }
-        else
-        {
-            // Log an error if the image file is not found at the specified path
-            Debug.LogError("Image file not found at: " + path);
-        }
+        // Load and assign the captured image to the UI
+        Texture2D loadedTexture = new Texture2D(2, 2);
+        loadedTexture.LoadImage(File.ReadAllBytes(path));
+        displayImage.texture = loadedTexture;
     }
 }

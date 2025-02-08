@@ -5,21 +5,21 @@ using UnityEngine.SceneManagement;
 
 public class ARGameManager : MonoBehaviour
 {
-    public GameObject environment; // Reference to the environment object in the scene
-    public GameObject imageUI; // Reference to the UI that appears after an action
+    public GameObject environment; // Reference to the AR environment
+    public GameObject imageUI; // UI that displays the captured image
 
     void Start()
     {
-        // Ensures the environment is visible when the scene starts
+        // Ensure the AR environment is active at the start
         environment.SetActive(true);
 
-        // Hides the image UI at the beginning of the scene
+        // Hide the image UI initially
         imageUI.SetActive(false);
     }
 
     public void CaptureAgain()
     {
-        // To capture image again, we are reloading the current active scene to reset the AR experience
+        // Reload the current scene to reset the AR experience
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
 }

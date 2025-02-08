@@ -6,70 +6,64 @@ using UnityEngine.XR.ARSubsystems;
 
 public class ARCubePlacement : MonoBehaviour
 {
-    [SerializeField] private GameObject cubePrefab;  // Prefab for the cube to be instantiated
-    [SerializeField] private GameObject imageUI;     // UI element to be shown after placement
+    public GameObject cubePrefab; // Prefab of the cube to be placed
+    public ARRaycastManager arRaycastManager; // Reference to ARRaycastManager for detecting planes
+    public ARPlaneManager arPlaneManager; // Reference to ARPlaneManager for managing detected planes
 
-    private ARRaycastManager arRaycastManager;  // Manages AR raycasting for touch-based placement
-    private List<ARRaycastHit> hits = new List<ARRaycastHit>(); // Stores raycast hit results
-    private Camera arCamera; // Reference to the AR Camera
-    private ARImageCapture arImageCapture; // Manages AR image capture functionality
-    private ARGameManager arGameManager; // Manages game state and UI elements
+    private ARImageCapture arImageCapture; // Reference to ARImageCapture for taking AR images
+    private List<ARRaycastHit> raycastHits = new List<ARRaycastHit>(); // List to store raycast results
 
     void Start()
     {
-        // Finds AR Raycast Manager in the scene, responsible for detecting AR surfaces
-        arRaycastManager = FindObjectOfType<ARRaycastManager>();
-
-        // Gets reference to the main AR Camera
-        arCamera = Camera.main;
-
-        // Finds the AR Image Capture script in the scene, ensuring image capture functionality
+        // Find and assign the ARImageCapture component in the scene
         arImageCapture = FindObjectOfType<ARImageCapture>();
-
-        // Finds the AR Game Manager script, which handles UI state changes
-        arGameManager = FindObjectOfType<ARGameManager>();
     }
 
     void Update()
     {
-        // Checks if the user has touched the screen and if the touch just began
+        // Check if the screen is touched and the touch phase is "Began"
         if (Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began)
         {
-            PlaceCube();
+            PlaceObject();
         }
     }
 
-    void PlaceCube()
+    void PlaceObject()
     {
-        // Generates a random position within a predefined range
-        float randomX = Random.Range(-3f, 3f);  // Random X position between -3 and 3
-        float randomZ = Random.Range(-3f, 3f);  // Random Z position between -3 and 3
-        float randomY = 0.5f;  // Fixed Y position to keep cubes above ground
+        // Perform a raycast from the touch position to detect AR planes
+        bool collision = arRaycastManager.Raycast(Input.GetTouch(0).position, raycastHits, TrackableType.PlaneWithinPolygon);
 
-        Vector3 randomPosition = new Vector3(randomX, randomY, randomZ);
+        if (collision)
+        {
+            // Get the first detected plane's position
+            Vector3 spawnPosition = raycastHits[0].pose.position;
 
-        // Instantiates the cube at the generated position with default rotation
-        GameObject cube = Instantiate(cubePrefab, randomPosition, Quaternion.identity);
+            // Adjust spawn position to place the cube above the plane
+            spawnPosition.y += cubePrefab.transform.localScale.y / 2;
 
-        // Assigns a random color to the instantiated cube
-        cube.GetComponent<Renderer>().material.color = new Color(Random.value, Random.value, Random.value);
+            // Instantiate the cube at the detected position
+            GameObject _cubePrefab = Instantiate(cubePrefab, spawnPosition, Quaternion.identity);
 
-        // Captures an image after 10 frames using ARImageCapture
-        arImageCapture.CaptureImageAfterFrames(10);
+            // Assign a random color to the cube
+            _cubePrefab.GetComponent<Renderer>().material.color = new Color(Random.value, Random.value, Random.value);
 
-        // Initiates a coroutine to enable imageUI after a 3-second delay
-        StartCoroutine(ShowImageUIAfterDelay(3f));
+            // Disable AR planes after placing the object
+            DisablePlanes();
+
+            // Capture an image after 10 frames
+            arImageCapture.CaptureImageAfterFrames(10);
+        }
     }
 
-    IEnumerator ShowImageUIAfterDelay(float delay)
+    void DisablePlanes()
     {
-        // Waits for the specified duration before executing the next line
-        yield return new WaitForSeconds(delay);
+        // Disable all detected AR planes
+        foreach (var plane in arPlaneManager.trackables)
+        {
+            plane.gameObject.SetActive(false);
+        }
 
-        // Disables the environment object to focus on UI display
-        arGameManager.environment.SetActive(false);
-
-        // Activates the UI element after the delay
-        arGameManager.imageUI.SetActive(true);
+        // Disable AR plane detection
+        arPlaneManager.enabled = false;
     }
 }
